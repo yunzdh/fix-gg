@@ -1,4 +1,4 @@
-name: Build Android Shared Library
+name: Android NDK Build
 
 on:
   push:
@@ -7,47 +7,48 @@ on:
     branches: [ main, master ]
 
 jobs:
-  build-android:
+  build:
     runs-on: ubuntu-latest
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
-    - name: Download and Setup Android NDK
+
+    - name: Setup Android NDK
+      uses: android-actions/setup-android@v3
+      with:
+        ndk-version: '21.4.7075529'  # 使用 GitHub 提供的 NDK
+
+    - name: Set up environment
       run: |
-        # 下载指定版本的 Android NDK
-        wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
-        unzip -q android-ndk-r25b-linux.zip
-        echo "NDK_PATH=$(pwd)/android-ndk-r25b" >> $GITHUB_ENV
-        
-    - name: Install Build Tools
+        echo "NDK_ROOT=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
+        echo "PROJECT_PATH=$(pwd)" >> $GITHUB_ENV
+
+    - name: Clean previous build
       run: |
-        sudo apt-get update
-        sudo apt-get install -y cmake make
-        
-    - name: Configure with CMake
+        if [ -d "obj" ]; then
+          rm -rf obj/local
+          echo "Cleaned cache"
+        fi
+
+    - name: Build with NDK
       run: |
-        mkdir -p build
-        cd build
-        cmake .. \
-          -DCMAKE_TOOLCHAIN_FILE=$NDK_PATH/build/cmake/android.toolchain.cmake \
-          -DANDROID_ABI=arm64-v8a \
-          -DANDROID_PLATFORM=android-28 \
-          -DCMAKE_BUILD_TYPE=Release
-          
-    - name: Build the Library
+        # 使用 GitHub 提供的 ndk-build
+        $ANDROID_NDK_ROOT/ndk-build
+        # 或者如果 PATH 中已有: ndk-build
+
+    - name: Rename library file
       run: |
-        cd build
-        make -j4
-        
-    - name: Verify Generated Files
-      run: |
-        find build -name "*.so" -type f | xargs -I {} file {} || echo "No .so files found"
-        
-    - name: Upload Shared Library Artifact
+        if [ -f "libs/arm64-v8a/lib5.so.fix.so" ]; then
+          mv libs/arm64-v8a/lib5.so.fix.so libs/arm64-v8a/lib5.so.fix
+          echo "File renamed successfully"
+        fi
+
+    - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: libfix_gg-android
-        path: build/lib*.so
-        retention-days: 30
+        name: ndk-build-output
+        path: |
+          libs/
+          obj/
+        retention-days: 7
