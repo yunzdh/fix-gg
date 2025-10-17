@@ -14,20 +14,19 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Download and setup Android NDK
+    - name: Download and Setup Android NDK
       run: |
-        # 下载 Android NDK
+        # 下载指定版本的 Android NDK
         wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
         unzip -q android-ndk-r25b-linux.zip
-        echo "ANDROID_NDK_ROOT=$(pwd)/android-ndk-r25b" >> $GITHUB_ENV
         echo "NDK_PATH=$(pwd)/android-ndk-r25b" >> $GITHUB_ENV
         
-    - name: Install build tools
+    - name: Install Build Tools
       run: |
         sudo apt-get update
-        sudo apt-get install -y cmake make g++
+        sudo apt-get install -y cmake make
         
-    - name: Configure and Build
+    - name: Configure with CMake
       run: |
         mkdir -p build
         cd build
@@ -35,17 +34,20 @@ jobs:
           -DCMAKE_TOOLCHAIN_FILE=$NDK_PATH/build/cmake/android.toolchain.cmake \
           -DANDROID_ABI=arm64-v8a \
           -DANDROID_PLATFORM=android-28 \
-          -DCMAKE_MAKE_PROGRAM=make \
           -DCMAKE_BUILD_TYPE=Release
+          
+    - name: Build the Library
+      run: |
+        cd build
         make -j4
         
-    - name: Check generated files
+    - name: Verify Generated Files
       run: |
-        find build -name "*.so" | xargs -I {} file {} || echo "No .so files found"
+        find build -name "*.so" -type f | xargs -I {} file {} || echo "No .so files found"
         
-    - name: Upload artifacts
+    - name: Upload Shared Library Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: android-lib-fix_gg
+        name: libfix_gg-android
         path: build/lib*.so
         retention-days: 30
