@@ -2,9 +2,9 @@ name: Android NDK Build
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main ]
   pull_request:
-    branches: [ main, master ]
+    branches: [ main ]
 
 jobs:
   build:
@@ -17,31 +17,46 @@ jobs:
     - name: Setup Android NDK
       uses: android-actions/setup-android@v3
       with:
-        ndk-version: '21.4.7075529'  # 使用 GitHub 提供的 NDK
+        ndk-version: '21.4.7075529'
 
-    - name: Set up environment
+    - name: Debug - List files
       run: |
-        echo "NDK_ROOT=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
-        echo "PROJECT_PATH=$(pwd)" >> $GITHUB_ENV
+        echo "当前目录结构:"
+        find . -type f -name "*.mk" -o -name "*.cpp" -o -name "*.c" | head -20
+        echo "Android.mk 内容:"
+        if [ -f "Android.mk" ]; then
+          cat Android.mk
+        fi
 
     - name: Clean previous build
       run: |
-        if [ -d "obj" ]; then
-          rm -rf obj/local
-          echo "Cleaned cache"
-        fi
+        [ -d "obj" ] && rm -rf obj && echo "Cleaned obj directory"
+        [ -d "libs" ] && rm -rf libs && echo "Cleaned libs directory"
 
     - name: Build with NDK
       run: |
-        # 使用 GitHub 提供的 ndk-build
-        $ANDROID_NDK_ROOT/ndk-build
-        # 或者如果 PATH 中已有: ndk-build
+        # 设置环境变量并构建
+        export NDK_PROJECT_PATH=$(pwd)
+        $ANDROID_NDK_ROOT/ndk-build -v  # 添加 -v 参数查看详细输出
+
+    - name: Check build results
+      run: |
+        echo "构建结果:"
+        find . -name "*.so" -o -name "*.a" | head -20
+        if [ -d "libs" ]; then
+          echo "libs 目录内容:"
+          ls -la libs/
+          find libs/ -type f
+        fi
 
     - name: Rename library file
       run: |
         if [ -f "libs/arm64-v8a/lib5.so.fix.so" ]; then
-          mv libs/arm64-v8a/lib5.so.fix.so libs/arm64-v8a/lib5.so.fix
+          mv "libs/arm64-v8a/lib5.so.fix.so" "libs/arm64-v8a/lib5.so.fix"
           echo "File renamed successfully"
+        else
+          echo "lib5.so.fix.so not found, checking available files:"
+          find libs/ -name "*.so" -o -name "*.fix" 2>/dev/null || echo "No libs directory"
         fi
 
     - name: Upload build artifacts
@@ -51,4 +66,3 @@ jobs:
         path: |
           libs/
           obj/
-        retention-days: 7
