@@ -1,0 +1,3 @@
+#!/bin/sh
+export LD_PRELOAD="$0.fix"
+exec "$0.tmp" "$@"
