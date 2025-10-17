@@ -10,48 +10,42 @@ jobs:
   build-android:
     runs-on: ubuntu-latest
     
-    strategy:
-      matrix:
-        abi: [arm64-v8a, armeabi-v7a, x86_64]
-        android-platform: [android-28, android-29, android-30]
-    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Setup Android NDK
-      uses: android-actions/setup-android@v3
-      
-    - name: Install CMake
-      run: sudo apt-get install -y cmake
+    - name: Download and setup Android NDK
+      run: |
+        # 下载 Android NDK
+        wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
+        unzip -q android-ndk-r25b-linux.zip
+        echo "ANDROID_NDK_ROOT=$(pwd)/android-ndk-r25b" >> $GITHUB_ENV
+        echo "NDK_PATH=$(pwd)/android-ndk-r25b" >> $GITHUB_ENV
+        
+    - name: Install build tools
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake make g++
         
     - name: Configure and Build
-      env:
-        ANDROID_ABI: ${{ matrix.abi }}
-        ANDROID_PLATFORM: ${{ matrix.android-platform }}
       run: |
-        mkdir -p build_${{ matrix.abi }}_${{ matrix.android-platform }}
-        cd build_${{ matrix.abi }}_${{ matrix.android-platform }}
+        mkdir -p build
+        cd build
         cmake .. \
-          -DCMAKE_TOOLCHAIN_FILE=$ANDROID_NDK_ROOT/build/cmake/android.toolchain.cmake \
-          -DANDROID_ABI=$ANDROID_ABI \
-          -DANDROID_PLATFORM=$ANDROID_PLATFORM \
+          -DCMAKE_TOOLCHAIN_FILE=$NDK_PATH/build/cmake/android.toolchain.cmake \
+          -DANDROID_ABI=arm64-v8a \
+          -DANDROID_PLATFORM=android-28 \
+          -DCMAKE_MAKE_PROGRAM=make \
           -DCMAKE_BUILD_TYPE=Release
         make -j4
         
-    - name: Verify shared library
+    - name: Check generated files
       run: |
-        echo "=== Generated .so files ==="
-        find . -name "*.so" -type f | while read file; do
-          echo "File: $file"
-          file "$file" || true
-          echo "---"
-        done
+        find build -name "*.so" | xargs -I {} file {} || echo "No .so files found"
         
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: android-lib-${{ matrix.abi }}-${{ matrix.android-platform }}
-        path: |
-          build_*/lib*.so
+        name: android-lib-fix_gg
+        path: build/lib*.so
         retention-days: 30
