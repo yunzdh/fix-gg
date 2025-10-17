@@ -14,18 +14,27 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Setup Android NDK
-      uses: android-actions/setup-android@v3
-      with:
-        ndk-version: '21.4.7075529'
-
-    - name: Debug - List files
+    - name: Install Android NDK
       run: |
-        echo "当前目录结构:"
-        find . -type f -name "*.mk" -o -name "*.cpp" -o -name "*.c" | head -20
-        echo "Android.mk 内容:"
+        # 直接下载并安装 NDK r21b（和你本地版本一致）
+        wget -q https://dl.google.com/android/repository/android-ndk-r21b-linux-x86_64.zip
+        unzip -q android-ndk-r21b-linux-x86_64.zip
+        echo "NDK_PATH=$(pwd)/android-ndk-r21b" >> $GITHUB_ENV
+        echo "$(pwd)/android-ndk-r21b" >> $GITHUB_PATH
+
+    - name: Debug - Show project structure
+      run: |
+        echo "=== 项目文件结构 ==="
+        ls -la
+        echo "=== Android.mk 内容 ==="
         if [ -f "Android.mk" ]; then
           cat Android.mk
+        else
+          echo "Android.mk 不存在！"
+        fi
+        echo "=== Application.mk 内容 ==="
+        if [ -f "Application.mk" ]; then
+          cat Application.mk
         fi
 
     - name: Clean previous build
@@ -35,28 +44,25 @@ jobs:
 
     - name: Build with NDK
       run: |
-        # 设置环境变量并构建
-        export NDK_PROJECT_PATH=$(pwd)
-        $ANDROID_NDK_ROOT/ndk-build -v  # 添加 -v 参数查看详细输出
+        echo "当前路径: $(pwd)"
+        echo "NDK 路径: $NDK_PATH"
+        # 使用明确的路径和参数构建
+        $NDK_PATH/ndk-build NDK_PROJECT_PATH=$(pwd) V=1
 
     - name: Check build results
       run: |
-        echo "构建结果:"
-        find . -name "*.so" -o -name "*.a" | head -20
+        echo "=== 构建结果 ==="
+        find . -name "*.so" -o -name "*.a" 2>/dev/null | head -20 || echo "未找到 .so 或 .a 文件"
         if [ -d "libs" ]; then
-          echo "libs 目录内容:"
+          echo "libs 目录:"
           ls -la libs/
-          find libs/ -type f
         fi
 
     - name: Rename library file
       run: |
         if [ -f "libs/arm64-v8a/lib5.so.fix.so" ]; then
           mv "libs/arm64-v8a/lib5.so.fix.so" "libs/arm64-v8a/lib5.so.fix"
-          echo "File renamed successfully"
-        else
-          echo "lib5.so.fix.so not found, checking available files:"
-          find libs/ -name "*.so" -o -name "*.fix" 2>/dev/null || echo "No libs directory"
+          echo "文件重命名成功"
         fi
 
     - name: Upload build artifacts
